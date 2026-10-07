@@ -1,8 +1,5 @@
 import { playVoice, toggleAudio } from "./audio.js";
 import { renderInspector } from "./inspector.js";
-import { applyRackPreset } from "./presets.js";
-import { emitRack, rackVisuals } from "./rack.js";
-import { shiftPitch } from "./pitch.js";
 
 const svg=document.querySelector("#stage");
 const linksG=document.querySelector("#links");
@@ -32,13 +29,14 @@ function getNode(id){return state.nodes.find(n=>n.id===id);}
 function status(text){statusEl.textContent=text;}
 function element(tag,attrs={}) {
  const e=document.createElementNS(NS,tag);
- for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
+ for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,String(v));
  return e;
 }
 function point(event) {
- const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;
+ const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY;
  return p.matrixTransform(svg.getScreenCTM().inverse());
 }
+
 function addLink(from,to) {
  if(from===to)return status("A node cannot link to itself.");
  if(state.links.some(l=>l.from===from&&l.to===to))return;
@@ -52,19 +50,18 @@ function resetWorld() {
  Object.assign(state,{nodes:[],links:[],balls:[],nextNodeId:1,nextLinkId:1,
    nextBallId:1,selected:null,drag:null,timers:new Set()});
  const s=node("source",120,300,{period:3.7,color:"blue",radius:7});
- const sh=node("shift",335,190,{shift:1});
+ const p=node("paint",335,190,{paint:"purple"});
  const b1=node("bell",585,150,{name:"Bell",voice:"temple"});
- const r=node("rack",380,420,{});
- applyRackPreset(r,"quiet-arc");
+ const r=node("rack",380,420,{pattern:["blue","purple","blue","green"],spacingMs:480});
  const b2=node("bell",760,420,{name:"Bowl",voice:"bowl"});
- addLink(s.id,sh.id);addLink(sh.id,b1.id);addLink(s.id,r.id);addLink(r.id,b2.id);
+ addLink(s.id,p.id);addLink(p.id,b1.id);addLink(s.id,r.id);addLink(r.id,b2.id);
  render();
 }
 
 function render() {
  linksG.replaceChildren();ballsG.replaceChildren();nodesG.replaceChildren();
  for(const l of state.links) {
-   const a=getNode(l.from),b=getNode(l.to);if(!a||!b)continue;
+   const a=getNode(l.from),b=getNode(l.to); if(!a||!b)continue;
    const line=element("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,
      class:`link${state.selected?.kind==="link"&&state.selected.id===l.id?" selected":""}`});
    line.dataset.linkId=l.id;linksG.append(line);
@@ -87,18 +84,14 @@ function drawNode(n) {
    opacity:.8*n.pulse}));
  g.append(element("rect",{x:-NODE_W,y:-NODE_H,width:96,height:64,rx:16,class:"node-shell"}));
  if(n.type==="rack") {
-   for(const bead of rackVisuals(n))
-     g.append(element("circle",{cx:bead.x,cy:-9,r:bead.displayRadius,fill:palette[bead.color]}));
- } else if(n.type==="shift") {
-   const t=element("text",{x:0,y:-4,class:"node-glyph"});
-   t.textContent=(n.shift??1)>0?`↑${n.shift}`:`↓${Math.abs(n.shift)}`;g.append(t);
+   const pattern=n.pattern??[],start=-((pattern.length-1)*18)/2;
+   pattern.forEach((c,i)=>g.append(element("circle",{cx:start+i*18,cy:-9,r:6,fill:palette[c]})));
  } else {
-   const fill=n.type==="source"?palette[n.color]:"#d9dde5";
+   const fill=n.type==="source"?palette[n.color]:n.type==="paint"?palette[n.paint]:"#d9dde5";
    g.append(element("circle",{cx:0,cy:-10,r:9,fill}));
  }
  const label=element("text",{x:0,y:17,class:"node-label"});
- label.textContent=n.type==="bell"?(n.name??"Bell"):n.type==="shift"?"Shift":
-   n.type[0].toUpperCase()+n.type.slice(1);
+ label.textContent=n.type==="bell"?(n.name??"Bell"):n.type[0].toUpperCase()+n.type.slice(1);
  g.append(label);nodesG.append(g);
 }
 
@@ -110,6 +103,7 @@ function renderSelection() {
  deleteBtn.disabled=!state.selected;
  renderInspector(n,render);
 }
+
 function selectNode(id) {
  if(state.selected?.kind==="node"&&state.selected.id!==id) {
    addLink(state.selected.id,id);state.selected=null;
@@ -117,6 +111,7 @@ function selectNode(id) {
  else state.selected={kind:"node",id};
  render();
 }
+
 function deleteSelected() {
  if(!state.selected)return;
  if(state.selected.kind==="link")state.links=state.links.filter(l=>l.id!==state.selected.id);
@@ -140,6 +135,7 @@ svg.addEventListener("pointerdown",event=>{
  if(line){state.selected={kind:"link",id:Number(line.dataset.linkId)};render();event.preventDefault();return;}
  state.selected=null;render();
 });
+
 svg.addEventListener("pointermove",event=>{
  const d=state.drag;if(!d||d.pointerId!==event.pointerId)return;
  if(Math.hypot(event.clientX-d.startX,event.clientY-d.startY)>4)d.moved=true;
@@ -147,6 +143,7 @@ svg.addEventListener("pointermove",event=>{
  const p=point(event);d.node.x=Math.max(55,Math.min(945,p.x));
  d.node.y=Math.max(45,Math.min(595,p.y));render();
 });
+
 svg.addEventListener("pointerup",event=>{
  const d=state.drag;if(!d||d.pointerId!==event.pointerId)return;
  if(svg.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);
@@ -159,26 +156,30 @@ function emitFrom(id,color,radius=DEFAULT_R) {
    state.balls.push({id:state.nextBallId++,from:l.from,to:l.to,progress:0,color,radius});
  }
 }
+
 function allowStrike(n,now) {
  if(now-n.strikeWindowMs>=1000){n.strikeWindowMs=now;n.strikeCount=0;}
  if(n.strikeCount>=MAX_STRIKES)return false;
  n.strikeCount++;return true;
 }
+
 function schedule(fn,delay) {
  if(state.timers.size>=MAX_TIMERS)return status(`Safety limit: ${MAX_TIMERS} scheduled events.`);
  const timer=setTimeout(()=>{state.timers.delete(timer);fn();},delay);
  state.timers.add(timer);
 }
+
 function strike(n,color,radius,now=performance.now()) {
  if(!allowStrike(n,now))return;
  n.pulse=1;n.hitColor=color;
  if(n.type==="bell"){playVoice(color,radius,n.voice);emitFrom(n.id,color,radius);}
- else if(n.type==="shift")emitFrom(n.id,shiftPitch(color,n.shift??1),radius);
- else if(n.type==="rack")emitRack(n,schedule,emitFrom,()=>state.running);
- else if(n.type==="source") {
-   n.lastEmitMs=now;emitFrom(n.id,n.color??"blue",n.radius??DEFAULT_R);
- } else emitFrom(n.id,color,radius);
+ else if(n.type==="paint")emitFrom(n.id,n.paint,radius);
+ else if(n.type==="rack")(n.pattern??[]).forEach((c,i)=>schedule(()=>{
+   if(state.running)emitFrom(n.id,c,radius);
+ },i*(n.spacingMs??480)));
+ else emitFrom(n.id,color,radius);
 }
+
 function touchProgress(a,n,distance,radius) {
  const ux=Math.abs((a.x-n.x)/distance),uy=Math.abs((a.y-n.y)/distance);
  const edge=Math.min(ux?NODE_W/ux:Infinity,uy?NODE_H/uy:Infinity);
@@ -202,14 +203,14 @@ function update(dt,now) {
  state.balls=state.balls.filter(b=>!b.dead);
  arrivals.forEach(([n,b])=>strike(n,b.color,b.radius,now));
 }
+
 function addNode(type) {
  const extra=type==="source"?{period:4.5,color:"green",radius:7}:
-   type==="rack"?{}:type==="shift"?{shift:1}:
-   type==="bell"?{name:"Bell",voice:"temple"}:{};
- const n=node(type,470+Math.random()*120,250+Math.random()*120,extra);
- if(type==="rack")applyRackPreset(n,"three-stones");
- render();
+   type==="rack"?{pattern:["blue","purple","blue","green"],spacingMs:480}:
+   type==="paint"?{paint:"green"}:type==="bell"?{name:"Bell",voice:"temple"}:{};
+ node(type,470+Math.random()*120,250+Math.random()*120,extra);render();
 }
+
 function frame(now) {
  const dt=Math.min(.05,(now-state.lastFrame)/1000);state.lastFrame=now;
  if(state.running){update(dt,now);render();}

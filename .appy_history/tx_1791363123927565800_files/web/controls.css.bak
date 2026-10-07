@@ -1,0 +1,27 @@
+.inspector-panel {
+ min-height: 290px;
+}
+
+.preset-grid {
+ display: grid;
+ grid-template-columns: 1fr;
+ gap: .4rem;
+}
+
+.shift-grid {
+ display: grid;
+ grid-template-columns: repeat(4, 1fr);
+ gap: .4rem;
+}
+
+.shift-grid .voice-choice {
+ text-align: center;
+}
+
+.node-glyph {
+ fill: #eef2f7;
+ font-size: 15px;
+ font-weight: 650;
+ text-anchor: middle;
+ pointer-events: none;
+}

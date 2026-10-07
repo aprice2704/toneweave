@@ -5,7 +5,6 @@
  <meta name="viewport" content="width=device-width,initial-scale=1" />
  <title>Toneweave</title>
  <link rel="stylesheet" href="./style.css" />
- <link rel="stylesheet" href="./controls.css" />
 </head>
 <body>
  <main class="app-shell">
@@ -38,31 +37,30 @@
            <button class="add-node" data-type="source">Source</button>
            <button class="add-node" data-type="bell">Bell</button>
            <button class="add-node" data-type="rack">Rack</button>
-           <button class="add-node" data-type="shift">Shifter</button>
+           <button class="add-node" data-type="paint">Painter</button>
          </div>
        </section>
 
        <section class="panel">
          <h2>Connect / edit</h2>
          <p>Click one block, then another, to link them. Click a link to select it.</p>
-         <div id="selection">Nothing selected.</div>
+         <div id="selection">No block selected.</div>
          <button id="delete-selected" class="wide-button" disabled>Delete selected</button>
        </section>
 
-       <section id="inspector" class="panel inspector-panel">
-         <h2>Inspector</h2>
-         <p>Select a node to inspect it.</p>
-       </section>
-
        <section class="panel">
-         <h2>Rack</h2>
-         <p>Racks hold visible musical seeds and emit them once when struck.</p>
-         <div class="rack-preview">
+         <h2>Rack pattern</h2>
+         <p>A rack emits its stored sequence when struck.</p>
+         <div class="rack-preview" aria-label="Blue purple blue green">
            <span class="bead blue"></span>
            <span class="bead purple"></span>
            <span class="bead blue"></span>
            <span class="bead green"></span>
          </div>
+       </section>
+
+       <section class="panel note">
+         <p><strong>Core law:</strong> anything that changes the music should preferably have a visible physical analogue.</p>
        </section>
      </aside>
    </section>

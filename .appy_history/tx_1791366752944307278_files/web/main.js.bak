@@ -1,7 +1,6 @@
 import { playVoice, toggleAudio } from "./audio.js";
 import { renderInspector } from "./inspector.js";
 import { applyRackPreset } from "./presets.js";
-import { emitRack, rackVisuals } from "./rack.js";
 import { shiftPitch } from "./pitch.js";
 
 const svg=document.querySelector("#stage");
@@ -32,11 +31,11 @@ function getNode(id){return state.nodes.find(n=>n.id===id);}
 function status(text){statusEl.textContent=text;}
 function element(tag,attrs={}) {
  const e=document.createElementNS(NS,tag);
- for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
+ for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,String(v));
  return e;
 }
 function point(event) {
- const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;
+ const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY;
  return p.matrixTransform(svg.getScreenCTM().inverse());
 }
 function addLink(from,to) {
@@ -54,7 +53,7 @@ function resetWorld() {
  const s=node("source",120,300,{period:3.7,color:"blue",radius:7});
  const sh=node("shift",335,190,{shift:1});
  const b1=node("bell",585,150,{name:"Bell",voice:"temple"});
- const r=node("rack",380,420,{});
+ const r=node("rack",380,420,{spacingMs:480});
  applyRackPreset(r,"quiet-arc");
  const b2=node("bell",760,420,{name:"Bowl",voice:"bowl"});
  addLink(s.id,sh.id);addLink(sh.id,b1.id);addLink(s.id,r.id);addLink(r.id,b2.id);
@@ -64,7 +63,7 @@ function resetWorld() {
 function render() {
  linksG.replaceChildren();ballsG.replaceChildren();nodesG.replaceChildren();
  for(const l of state.links) {
-   const a=getNode(l.from),b=getNode(l.to);if(!a||!b)continue;
+   const a=getNode(l.from),b=getNode(l.to); if(!a||!b)continue;
    const line=element("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,
      class:`link${state.selected?.kind==="link"&&state.selected.id===l.id?" selected":""}`});
    line.dataset.linkId=l.id;linksG.append(line);
@@ -87,8 +86,8 @@ function drawNode(n) {
    opacity:.8*n.pulse}));
  g.append(element("rect",{x:-NODE_W,y:-NODE_H,width:96,height:64,rx:16,class:"node-shell"}));
  if(n.type==="rack") {
-   for(const bead of rackVisuals(n))
-     g.append(element("circle",{cx:bead.x,cy:-9,r:bead.displayRadius,fill:palette[bead.color]}));
+   const pattern=n.pattern??[],start=-((pattern.length-1)*18)/2;
+   pattern.forEach((c,i)=>g.append(element("circle",{cx:start+i*18,cy:-9,r:6,fill:palette[c]})));
  } else if(n.type==="shift") {
    const t=element("text",{x:0,y:-4,class:"node-glyph"});
    t.textContent=(n.shift??1)>0?`↑${n.shift}`:`↓${Math.abs(n.shift)}`;g.append(t);
@@ -110,6 +109,7 @@ function renderSelection() {
  deleteBtn.disabled=!state.selected;
  renderInspector(n,render);
 }
+
 function selectNode(id) {
  if(state.selected?.kind==="node"&&state.selected.id!==id) {
    addLink(state.selected.id,id);state.selected=null;
@@ -117,6 +117,7 @@ function selectNode(id) {
  else state.selected={kind:"node",id};
  render();
 }
+
 function deleteSelected() {
  if(!state.selected)return;
  if(state.selected.kind==="link")state.links=state.links.filter(l=>l.id!==state.selected.id);
@@ -174,10 +175,10 @@ function strike(n,color,radius,now=performance.now()) {
  n.pulse=1;n.hitColor=color;
  if(n.type==="bell"){playVoice(color,radius,n.voice);emitFrom(n.id,color,radius);}
  else if(n.type==="shift")emitFrom(n.id,shiftPitch(color,n.shift??1),radius);
- else if(n.type==="rack")emitRack(n,schedule,emitFrom,()=>state.running);
- else if(n.type==="source") {
-   n.lastEmitMs=now;emitFrom(n.id,n.color??"blue",n.radius??DEFAULT_R);
- } else emitFrom(n.id,color,radius);
+ else if(n.type==="rack")(n.pattern??[]).forEach((c,i)=>schedule(()=>{
+   if(state.running)emitFrom(n.id,c,radius);
+ },i*(n.spacingMs??480)));
+ else emitFrom(n.id,color,radius);
 }
 function touchProgress(a,n,distance,radius) {
  const ux=Math.abs((a.x-n.x)/distance),uy=Math.abs((a.y-n.y)/distance);
@@ -204,11 +205,9 @@ function update(dt,now) {
 }
 function addNode(type) {
  const extra=type==="source"?{period:4.5,color:"green",radius:7}:
-   type==="rack"?{}:type==="shift"?{shift:1}:
-   type==="bell"?{name:"Bell",voice:"temple"}:{};
- const n=node(type,470+Math.random()*120,250+Math.random()*120,extra);
- if(type==="rack")applyRackPreset(n,"three-stones");
- render();
+   type==="rack"?{spacingMs:480,preset:"three-stones",pattern:["blue","green","blue"]}:
+   type==="shift"?{shift:1}:type==="bell"?{name:"Bell",voice:"temple"}:{};
+ node(type,470+Math.random()*120,250+Math.random()*120,extra);render();
 }
 function frame(now) {
  const dt=Math.min(.05,(now-state.lastFrame)/1000);state.lastFrame=now;

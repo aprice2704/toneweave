@@ -1,0 +1,10 @@
+{
+  "tx_id": "tx_1791360227614757926",
+  "timestamp": 1791360227,
+  "files": [
+    {
+      "path": "web/inspector.js",
+      "existed": true
+    }
+  ]
+}

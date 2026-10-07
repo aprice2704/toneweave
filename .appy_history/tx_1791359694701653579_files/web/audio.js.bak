@@ -1,0 +1,54 @@
+const frequencies = {
+ blue: 392,
+ purple: 523.25,
+ green: 329.63,
+ amber: 440,
+ red: 261.63,
+};
+
+let ctx = null;
+let enabled = false;
+
+export async function toggleAudio() {
+ if (!ctx) ctx = new AudioContext();
+
+ if (enabled) {
+   await ctx.suspend();
+   enabled = false;
+ } else {
+   await ctx.resume();
+   enabled = true;
+ }
+
+ return enabled;
+}
+
+export function audioEnabled() {
+ return enabled;
+}
+
+export function playBell(color, scale = 1) {
+ if (!ctx || !enabled) return;
+
+ const now = ctx.currentTime;
+ const master = ctx.createGain();
+ master.gain.setValueAtTime(0.0001, now);
+ master.gain.exponentialRampToValueAtTime(0.06 * scale, now + 0.015);
+ master.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+ master.connect(ctx.destination);
+
+ for (const p of [
+   { ratio: 1, level: 1, decay: 2.3 },
+   { ratio: 2.01, level: 0.3, decay: 1.5 },
+   { ratio: 3.97, level: 0.12, decay: 0.9 },
+ ]) {
+   const osc = ctx.createOscillator();
+   const gain = ctx.createGain();
+   osc.frequency.value = (frequencies[color] ?? 392) * p.ratio;
+   gain.gain.setValueAtTime(p.level, now);
+   gain.gain.exponentialRampToValueAtTime(0.0001, now + p.decay);
+   osc.connect(gain).connect(master);
+   osc.start(now);
+   osc.stop(now + p.decay + 0.1);
+ }
+}

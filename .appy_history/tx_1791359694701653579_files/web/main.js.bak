@@ -1,0 +1,334 @@
+import { playBell, toggleAudio } from "./audio.js";
+
+const svg = document.querySelector("#stage");
+const linksG = document.querySelector("#links");
+const ballsG = document.querySelector("#balls");
+const nodesG = document.querySelector("#nodes");
+const statusEl = document.querySelector("#status");
+const selectionEl = document.querySelector("#selection");
+const audioBtn = document.querySelector("#enable-audio");
+const runBtn = document.querySelector("#toggle-run");
+const deleteBtn = document.querySelector("#delete-selected");
+const NS = "http://www.w3.org/2000/svg";
+
+const SPEED = 115, BALL_R = 7, NODE_W = 48, NODE_H = 32;
+const MAX_BALLS = 400, MAX_STRIKES_PER_SECOND = 16, MAX_PENDING_EVENTS = 160;
+const palette = {
+ blue:"#78a7ff", purple:"#b58cff", green:"#79c99e",
+ amber:"#e7ba6c", red:"#df7d7d",
+};
+
+const state = {
+ nodes:[], links:[], balls:[],
+ nextNodeId:1, nextLinkId:1, nextBallId:1,
+ selected:null, running:true, lastFrame:performance.now(),
+ drag:null, timers:new Set(),
+};
+
+function node(type,x,y,extra={}) {
+ const n={id:state.nextNodeId++,type,x,y,lastEmitMs:0,pulse:0,
+   strikeWindowMs:0,strikeCount:0,...extra};
+ state.nodes.push(n);
+ return n;
+}
+
+function getNode(id) { return state.nodes.find(n=>n.id===id); }
+function setStatus(text) { statusEl.textContent=text; }
+
+function addLink(from,to) {
+ if (from===to) return setStatus("A node cannot link to itself.");
+ if (state.links.some(l=>l.from===from&&l.to===to)) return;
+ if (state.links.some(l=>l.from===to&&l.to===from)) {
+   return setStatus("Direct two-node ping-pong loops are not allowed.");
+ }
+ state.links.push({id:state.nextLinkId++,from,to});
+}
+
+function el(tag,attrs={}) {
+ const e=document.createElementNS(NS,tag);
+ for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,String(v));
+ return e;
+}
+
+function point(event) {
+ const p=svg.createSVGPoint();
+ p.x=event.clientX; p.y=event.clientY;
+ return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+function clearTimers() {
+ for (const timer of state.timers) clearTimeout(timer);
+ state.timers.clear();
+}
+
+function resetWorld() {
+ clearTimers();
+ Object.assign(state,{
+   nodes:[],links:[],balls:[],nextNodeId:1,nextLinkId:1,nextBallId:1,
+   selected:null,drag:null,
+ });
+ const s=node("source",120,300,{period:3.7,color:"blue"});
+ const p=node("paint",335,190,{paint:"purple"});
+ const b1=node("bell",585,150,{name:"Bell"});
+ const r=node("rack",380,420,{pattern:["blue","purple","blue","green"],spacingMs:480});
+ const b2=node("bell",760,420,{name:"Bowl"});
+ addLink(s.id,p.id); addLink(p.id,b1.id);
+ addLink(s.id,r.id); addLink(r.id,b2.id);
+ render();
+}
+
+function render() {
+ linksG.replaceChildren(); ballsG.replaceChildren(); nodesG.replaceChildren();
+
+ for (const l of state.links) {
+   const a=getNode(l.from), b=getNode(l.to);
+   if (!a||!b) continue;
+   const line=el("line",{
+     x1:a.x,y1:a.y,x2:b.x,y2:b.y,
+     class:`link${state.selected?.kind==="link"&&state.selected.id===l.id?" selected":""}`,
+   });
+   line.dataset.linkId=l.id;
+   linksG.append(line);
+ }
+
+ for (const ball of state.balls) {
+   const a=getNode(ball.from), b=getNode(ball.to);
+   if (!a||!b) continue;
+   const x=a.x+(b.x-a.x)*ball.progress;
+   const y=a.y+(b.y-a.y)*ball.progress;
+   ballsG.append(el("circle",{cx:x,cy:y,r:BALL_R,fill:palette[ball.color],class:"ball"}));
+ }
+
+ for (const n of state.nodes) drawNode(n);
+ renderSelection();
+}
+
+function drawNode(n) {
+ const selected=state.selected?.kind==="node"&&state.selected.id===n.id;
+ const g=el("g",{transform:`translate(${n.x} ${n.y})`,class:`node${selected?" selected":""}`});
+ g.dataset.nodeId=n.id;
+
+ if (n.pulse>0) {
+   g.append(el("rect",{x:-54,y:-38,width:108,height:76,rx:20,fill:"none",
+     stroke:palette[n.hitColor]||"#eef2f7","stroke-width":2+4*n.pulse,opacity:.8*n.pulse}));
+ }
+
+ g.append(el("rect",{x:-NODE_W,y:-NODE_H,width:96,height:64,rx:16,class:"node-shell"}));
+
+ if (n.type==="rack") {
+   const pattern=n.pattern??[], start=-((pattern.length-1)*18)/2;
+   pattern.forEach((c,i)=>g.append(el("circle",{cx:start+i*18,cy:-9,r:6,fill:palette[c]})));
+ } else {
+   const fill=n.type==="source"?palette[n.color]:
+     n.type==="paint"?palette[n.paint]:"#d9dde5";
+   g.append(el("circle",{cx:0,cy:-10,r:9,fill}));
+ }
+
+ const label=el("text",{x:0,y:17,class:"node-label"});
+ label.textContent=n.type==="bell"?(n.name??"Bell"):
+   n.type[0].toUpperCase()+n.type.slice(1);
+ g.append(label);
+ nodesG.append(g);
+}
+
+function renderSelection() {
+ if (!state.selected) selectionEl.textContent="Nothing selected.";
+ else if (state.selected.kind==="node") {
+   const n=getNode(state.selected.id);
+   selectionEl.textContent=n
+     ? `Selected: ${n.type} #${n.id}. Click another node to connect.`
+     : "Nothing selected.";
+ } else selectionEl.textContent=`Selected link #${state.selected.id}.`;
+ deleteBtn.disabled=!state.selected;
+}
+
+function selectNode(id) {
+ if (state.selected?.kind==="node"&&state.selected.id!==id) {
+   addLink(state.selected.id,id);
+   state.selected=null;
+ } else if (state.selected?.kind==="node"&&state.selected.id===id) {
+   state.selected=null;
+ } else state.selected={kind:"node",id};
+ render();
+}
+
+function deleteSelected() {
+ if (!state.selected) return;
+ if (state.selected.kind==="link") {
+   state.links=state.links.filter(l=>l.id!==state.selected.id);
+ } else {
+   const id=state.selected.id;
+   state.nodes=state.nodes.filter(n=>n.id!==id);
+   state.links=state.links.filter(l=>l.from!==id&&l.to!==id);
+   state.balls=state.balls.filter(b=>b.from!==id&&b.to!==id);
+ }
+ state.selected=null;
+ render();
+}
+
+svg.addEventListener("pointerdown",event=>{
+ const group=event.target.closest?.(".node");
+ if (group) {
+   const n=getNode(Number(group.dataset.nodeId));
+   if (!n) return;
+   state.drag={pointerId:event.pointerId,node:n,startX:event.clientX,
+     startY:event.clientY,moved:false};
+   svg.setPointerCapture(event.pointerId);
+   event.preventDefault();
+   return;
+ }
+
+ const line=event.target.closest?.(".link");
+ if (line) {
+   state.selected={kind:"link",id:Number(line.dataset.linkId)};
+   render();
+   event.preventDefault();
+   return;
+ }
+
+ state.selected=null;
+ render();
+});
+
+svg.addEventListener("pointermove",event=>{
+ const d=state.drag;
+ if (!d||d.pointerId!==event.pointerId) return;
+ if (Math.hypot(event.clientX-d.startX,event.clientY-d.startY)>4) d.moved=true;
+ if (!d.moved) return;
+ const p=point(event);
+ d.node.x=Math.max(55,Math.min(945,p.x));
+ d.node.y=Math.max(45,Math.min(595,p.y));
+ render();
+});
+
+svg.addEventListener("pointerup",event=>{
+ const d=state.drag;
+ if (!d||d.pointerId!==event.pointerId) return;
+ if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+ state.drag=null;
+ if (!d.moved) selectNode(d.node.id);
+});
+
+svg.addEventListener("pointercancel",()=>{ state.drag=null; });
+
+function emitFrom(id,color) {
+ for (const l of state.links.filter(l=>l.from===id)) {
+   if (state.balls.length>=MAX_BALLS) {
+     setStatus(`Safety limit reached: ${MAX_BALLS} moving beads.`);
+     return;
+   }
+   state.balls.push({id:state.nextBallId++,from:l.from,to:l.to,progress:0,color});
+ }
+}
+
+function allowStrike(n,now) {
+ if (now-n.strikeWindowMs>=1000) {
+   n.strikeWindowMs=now; n.strikeCount=0;
+ }
+ if (n.strikeCount>=MAX_STRIKES_PER_SECOND) return false;
+ n.strikeCount++;
+ return true;
+}
+
+function schedule(fn,delay) {
+ if (state.timers.size>=MAX_PENDING_EVENTS) {
+   setStatus(`Safety limit reached: ${MAX_PENDING_EVENTS} scheduled events.`);
+   return;
+ }
+ const timer=setTimeout(()=>{
+   state.timers.delete(timer);
+   fn();
+ },delay);
+ state.timers.add(timer);
+}
+
+function strike(n,color,now=performance.now()) {
+ if (!allowStrike(n,now)) return;
+ n.pulse=1; n.hitColor=color;
+ if (n.type==="bell") {
+   playBell(color); emitFrom(n.id,color);
+ } else if (n.type==="paint") {
+   emitFrom(n.id,n.paint);
+ } else if (n.type==="rack") {
+   (n.pattern??[]).forEach((c,i)=>schedule(()=>{
+     if (state.running) { emitFrom(n.id,c); playBell(c,.28); }
+   },i*(n.spacingMs??480)));
+ } else emitFrom(n.id,color);
+}
+
+function touchProgress(from,to,distance) {
+ const ux=Math.abs((from.x-to.x)/distance);
+ const uy=Math.abs((from.y-to.y)/distance);
+ const edge=Math.min(ux>0?NODE_W/ux:Infinity,uy>0?NODE_H/uy:Infinity);
+ return Math.max(0,1-(edge+BALL_R)/distance);
+}
+
+function update(dt,now) {
+ for (const n of state.nodes) {
+   n.pulse=Math.max(0,n.pulse-dt*2.8);
+   if (n.type==="source"&&now-n.lastEmitMs>=(n.period??4)*1000) {
+     n.lastEmitMs=now;
+     emitFrom(n.id,n.color??"blue");
+   }
+ }
+
+ const arrivals=[];
+ for (const b of state.balls) {
+   const a=getNode(b.from), n=getNode(b.to);
+   if (!a||!n) { b.dead=true; continue; }
+   const distance=Math.max(1,Math.hypot(n.x-a.x,n.y-a.y));
+   b.progress+=(SPEED*dt)/distance;
+   if (b.progress>=touchProgress(a,n,distance)) {
+     b.dead=true;
+     arrivals.push([n,b.color]);
+   }
+ }
+ state.balls=state.balls.filter(b=>!b.dead);
+ arrivals.forEach(([n,c])=>strike(n,c,now));
+}
+
+function addNode(type) {
+ const extra=type==="source"?{period:4.5,color:"green"}:
+   type==="rack"?{pattern:["blue","purple","blue","green"],spacingMs:480}:
+   type==="paint"?{paint:"green"}:
+   type==="bell"?{name:"Bell"}:{};
+ node(type,470+Math.random()*120,250+Math.random()*120,extra);
+ render();
+}
+
+function frame(now) {
+ const dt=Math.min(.05,(now-state.lastFrame)/1000);
+ state.lastFrame=now;
+ if (state.running) { update(dt,now); render(); }
+ requestAnimationFrame(frame);
+}
+
+audioBtn.addEventListener("click",async()=>{
+ const enabled=await toggleAudio();
+ audioBtn.textContent=enabled?"Disable sound":"Enable sound";
+ setStatus(enabled?"Sound enabled. Link length is delay.":
+   "Sound disabled. The sculpture keeps moving.");
+ if (enabled) playBell("blue",.5);
+});
+
+runBtn.addEventListener("click",()=>{
+ state.running=!state.running;
+ runBtn.textContent=state.running?"Pause":"Play";
+ setStatus(state.running?"Running.":"Paused.");
+});
+
+deleteBtn.addEventListener("click",deleteSelected);
+document.querySelector("#reset").addEventListener("click",resetWorld);
+document.querySelectorAll(".add-node").forEach(
+ b=>b.addEventListener("click",()=>addNode(b.dataset.type)),
+);
+
+window.addEventListener("keydown",event=>{
+ if ((event.key==="Delete"||event.key==="Backspace")&&state.selected) {
+   event.preventDefault();
+   deleteSelected();
+ }
+});
+
+resetWorld();
+requestAnimationFrame(frame);

@@ -1,0 +1,65 @@
+import { voiceOrDefault } from "./sounds.js";
+
+const frequencies = {
+ blue: 392,
+ purple: 523.25,
+ green: 329.63,
+ amber: 440,
+ red: 261.63,
+};
+
+let ctx = null;
+let enabled = false;
+
+export async function toggleAudio() {
+ if (!ctx) ctx = new AudioContext();
+
+ if (enabled) {
+   await ctx.suspend();
+   enabled = false;
+ } else {
+   await ctx.resume();
+   enabled = true;
+ }
+
+ return enabled;
+}
+
+export function playVoice(color, radius = 7, voiceID = "temple") {
+ if (!ctx || !enabled) return;
+
+ const voice = voiceOrDefault(voiceID);
+ const now = ctx.currentTime;
+ const fundamental = frequencies[color] ?? frequencies.blue;
+ const strength = Math.max(0.15, Math.min(2, radius / 7));
+ const master = ctx.createGain();
+
+ master.gain.setValueAtTime(0.0001, now);
+ master.gain.exponentialRampToValueAtTime(
+   0.055 * strength,
+   now + voice.attack,
+ );
+ master.gain.exponentialRampToValueAtTime(
+   0.0001,
+   now + voice.decay,
+ );
+ master.connect(ctx.destination);
+
+ for (const [ratio, level] of voice.partials) {
+   const osc = ctx.createOscillator();
+   const gain = ctx.createGain();
+   const partialDecay = voice.decay * Math.max(0.28, 1 / Math.sqrt(ratio));
+
+   osc.type = voiceID === "wood" ? "triangle" : "sine";
+   osc.frequency.setValueAtTime(fundamental * ratio, now);
+   gain.gain.setValueAtTime(level, now);
+   gain.gain.exponentialRampToValueAtTime(
+     0.0001,
+     now + partialDecay,
+   );
+
+   osc.connect(gain).connect(master);
+   osc.start(now);
+   osc.stop(now + partialDecay + 0.1);
+ }
+}

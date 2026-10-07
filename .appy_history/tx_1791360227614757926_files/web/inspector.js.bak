@@ -1,0 +1,60 @@
+import { voices } from "./sounds.js";
+
+const inspector = document.querySelector("#inspector");
+
+export function renderInspector(node, onChange) {
+ inspector.replaceChildren();
+
+ if (!node) {
+   inspector.append(message("Select a node to inspect it."));
+   return;
+ }
+
+ const title = document.createElement("h2");
+ title.textContent = `${label(node.type)} #${node.id}`;
+ inspector.append(title);
+
+ if (node.type !== "bell") {
+   inspector.append(message("This node has no editable properties yet."));
+   return;
+ }
+
+ const voiceLabel = document.createElement("label");
+ voiceLabel.className = "field";
+
+ const caption = document.createElement("span");
+ caption.textContent = "Voice";
+
+ const select = document.createElement("select");
+ for (const [id, voice] of Object.entries(voices)) {
+   const option = document.createElement("option");
+   option.value = id;
+   option.textContent = voice.label;
+   option.selected = id === (node.voice ?? "temple");
+   select.append(option);
+ }
+
+ select.addEventListener("change", () => {
+   node.voice = select.value;
+   onChange();
+ });
+
+ voiceLabel.append(caption, select);
+ inspector.append(voiceLabel);
+
+ const note = message(
+   "Colour sets pitch. Bead radius sets strike strength and volume.",
+ );
+ note.classList.add("inspector-note");
+ inspector.append(note);
+}
+
+function message(text) {
+ const p = document.createElement("p");
+ p.textContent = text;
+ return p;
+}
+
+function label(value) {
+ return value[0].toUpperCase() + value.slice(1);
+}

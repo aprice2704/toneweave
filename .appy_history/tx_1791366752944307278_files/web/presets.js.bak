@@ -1,0 +1,33 @@
+export const rackPresets = {
+ "three-stones": {
+   label: "Three Stones",
+   pattern: ["blue", "green", "blue"],
+ },
+ "temple-steps": {
+   label: "Temple Steps",
+   pattern: ["red", "green", "blue", "purple"],
+ },
+ "glass-drops": {
+   label: "Glass Drops",
+   pattern: ["purple", "blue", "purple", "amber"],
+ },
+ pendulum: {
+   label: "Pendulum",
+   pattern: ["green", "purple", "green", "purple"],
+ },
+ "five-pebbles": {
+   label: "Five Pebbles",
+   pattern: ["red", "green", "blue", "green", "red"],
+ },
+ "quiet-arc": {
+   label: "Quiet Arc",
+   pattern: ["green", "blue", "purple", "blue"],
+ },
+};
+
+export function applyRackPreset(node, id) {
+ const preset = rackPresets[id];
+ if (!preset) return;
+ node.preset = id;
+ node.pattern = [...preset.pattern];
+}

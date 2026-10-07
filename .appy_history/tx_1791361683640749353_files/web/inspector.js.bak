@@ -1,0 +1,75 @@
+import { voices } from "./sounds.js";
+
+const inspector = document.querySelector("#inspector");
+
+export function renderInspector(node, onChange) {
+ const nextKey = node
+   ? `${node.type}:${node.id}:${node.voice ?? ""}`
+   : "none";
+
+ if (inspector.dataset.key === nextKey) return;
+
+ inspector.dataset.key = nextKey;
+ inspector.replaceChildren();
+
+ if (!node) {
+   inspector.append(message("Select a node to inspect it."));
+   return;
+ }
+
+ const title = document.createElement("h2");
+ title.textContent = `${label(node.type)} #${node.id}`;
+ inspector.append(title);
+
+ if (node.type !== "bell") {
+   inspector.append(
+     message("This node has no editable properties yet."),
+   );
+   return;
+ }
+
+ const caption = document.createElement("div");
+ caption.className = "field-caption";
+ caption.textContent = "Voice";
+ inspector.append(caption);
+
+ const choices = document.createElement("div");
+ choices.className = "voice-grid";
+
+ for (const [id, voice] of Object.entries(voices)) {
+   const button = document.createElement("button");
+   button.type = "button";
+   button.className = "voice-choice";
+   button.textContent = voice.label;
+
+   if (id === (node.voice ?? "temple")) {
+     button.classList.add("selected");
+   }
+
+   button.addEventListener("click", () => {
+     node.voice = id;
+     inspector.dataset.key = "";
+     onChange();
+   });
+
+   choices.append(button);
+ }
+
+ inspector.append(choices);
+
+ const note = message(
+   "Colour sets pitch. Bead radius sets strike strength and volume.",
+ );
+ note.classList.add("inspector-note");
+ inspector.append(note);
+}
+
+function message(text) {
+ const p = document.createElement("p");
+ p.textContent = text;
+ return p;
+}
+
+function label(value) {
+ return value[0].toUpperCase() + value.slice(1);
+}

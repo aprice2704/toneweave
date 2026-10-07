@@ -14,14 +14,16 @@ The working design law is:
 Requires Go 1.23+.
 
 ```bash
-go run .
+go run . -port 8097
 ```
 
 Then open:
 
 ```text
-http://localhost:8080
+http://localhost:8097
 ```
+
+If you omit `-port`, Toneweave defaults to port `8080`.
 
 The web UI is embedded into the Go binary, so there is no separate runtime dependency
 and no Python server lurking under the floorboards.

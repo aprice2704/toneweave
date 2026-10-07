@@ -18,7 +18,7 @@ body {
  color: var(--text);
 }
 
-button {
+button, select {
  font: inherit;
  color: var(--text);
  background: var(--panel-2);
@@ -127,30 +127,15 @@ button:disabled { opacity: .45; cursor: default; }
 
 .wide-button { width: 100%; margin-top: .8rem; }
 
-.field-caption {
- margin-top: .65rem;
- margin-bottom: .45rem;
+.field {
+ display: grid;
+ gap: .4rem;
+ margin-top: .7rem;
  color: var(--muted);
  font-size: .9rem;
 }
 
-.voice-grid {
- display: grid;
- grid-template-columns: 1fr;
- gap: .4rem;
-}
-
-.voice-choice {
- width: 100%;
- text-align: left;
- padding: .55rem .7rem;
-}
-
-.voice-choice.selected {
- border-color: #b8d8ff;
- background: #2a3542;
-}
-
+.field select { width: 100%; }
 .inspector-note { margin-top: .85rem !important; }
 
 .rack-preview {

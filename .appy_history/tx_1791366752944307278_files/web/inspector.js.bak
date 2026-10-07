@@ -1,0 +1,221 @@
+import { rackPresets, applyRackPreset } from "./presets.js";
+import { voices } from "./sounds.js";
+
+const inspector = document.querySelector("#inspector");
+const pitchColors = [
+ ["red", "Red"],
+ ["green", "Green"],
+ ["blue", "Blue"],
+ ["amber", "Amber"],
+ ["purple", "Purple"],
+];
+const sourceRates = [
+ [6, "Drift"],
+ [4.5, "Calm"],
+ [3, "Flow"],
+ [2, "Pulse"],
+];
+const sourceSizes = [
+ [4, "Soft"],
+ [7, "Normal"],
+ [10, "Strong"],
+ [14, "Deep"],
+];
+
+export function renderInspector(node, onChange) {
+ const nextKey = node
+   ? `${node.type}:${node.id}:${node.voice ?? ""}:${node.preset ?? ""}:${node.shift ?? ""}:${node.color ?? ""}:${node.radius ?? ""}:${node.period ?? ""}`
+   : "none";
+
+ if (inspector.dataset.key === nextKey) return;
+
+ inspector.dataset.key = nextKey;
+ inspector.replaceChildren();
+
+ if (!node) {
+   inspector.append(title("Inspector"));
+   inspector.append(message("Select a node to inspect it."));
+   return;
+ }
+
+ inspector.append(title(`${label(node.type)} #${node.id}`));
+
+ if (node.type === "bell") renderBell(node, onChange);
+ else if (node.type === "rack") renderRack(node, onChange);
+ else if (node.type === "shift") renderShift(node, onChange);
+ else if (node.type === "source") renderSource(node, onChange);
+ else inspector.append(message("This node has no editable properties yet."));
+}
+
+function renderBell(node, onChange) {
+ inspector.append(caption("Voice"));
+ const choices = document.createElement("div");
+ choices.className = "voice-grid";
+
+ for (const [id, voice] of Object.entries(voices)) {
+   choices.append(choiceButton(
+     voice.label,
+     id === (node.voice ?? "temple"),
+     () => {
+       node.voice = id;
+       refresh(onChange);
+     },
+   ));
+ }
+
+ inspector.append(choices);
+ inspector.append(note(
+   "Colour sets pitch. Bead radius sets strike strength and volume.",
+ ));
+}
+
+function renderRack(node, onChange) {
+ inspector.append(caption("Pattern seed"));
+ const choices = document.createElement("div");
+ choices.className = "preset-grid";
+
+ for (const [id, preset] of Object.entries(rackPresets)) {
+   choices.append(choiceButton(
+     preset.label,
+     id === node.preset,
+     () => {
+       applyRackPreset(node, id);
+       refresh(onChange);
+     },
+   ));
+ }
+
+ inspector.append(choices);
+ inspector.append(note(
+   "Presets fill ordinary rack beads. Direct bead editing comes next.",
+ ));
+}
+
+function renderShift(node, onChange) {
+ inspector.append(caption("Pitch shift"));
+ const choices = document.createElement("div");
+ choices.className = "shift-grid";
+
+ for (const steps of [-2, -1, 1, 2]) {
+   const text = steps > 0 ? `+${steps}` : String(steps);
+   choices.append(choiceButton(
+     text,
+     steps === (node.shift ?? 1),
+     () => {
+       node.shift = steps;
+       refresh(onChange);
+     },
+   ));
+ }
+
+ inspector.append(choices);
+ inspector.append(note(
+   "The shifter moves bead colour through the pitch palette.",
+ ));
+}
+
+function renderSource(node, onChange) {
+ inspector.append(caption("Pitch"));
+ const colors = document.createElement("div");
+ colors.className = "color-grid";
+
+ for (const [id, name] of pitchColors) {
+   const button = choiceButton(
+     name,
+     id === (node.color ?? "blue"),
+     () => {
+       node.color = id;
+       refresh(onChange);
+     },
+   );
+   button.classList.add("color-choice", `color-${id}`);
+   colors.append(button);
+ }
+
+ inspector.append(colors);
+ inspector.append(caption("Strike size"));
+ const sizes = document.createElement("div");
+ sizes.className = "size-grid";
+
+ for (const [radius, name] of sourceSizes) {
+   const button = choiceButton(
+     name,
+     radius === (node.radius ?? 7),
+     () => {
+       node.radius = radius;
+       refresh(onChange);
+     },
+   );
+   const dot = document.createElement("span");
+   dot.className = "size-dot";
+   dot.style.width = `${radius * 1.4}px`;
+   dot.style.height = `${radius * 1.4}px`;
+   button.prepend(dot);
+   sizes.append(button);
+ }
+
+ inspector.append(sizes);
+ inspector.append(caption("Breathing"));
+ const rates = document.createElement("div");
+ rates.className = "rate-grid";
+
+ for (const [period, name] of sourceRates) {
+   rates.append(choiceButton(
+     name,
+     period === (node.period ?? 4.5),
+     () => {
+       node.period = period;
+       refresh(onChange);
+     },
+   ));
+ }
+
+ inspector.append(rates);
+ inspector.append(note(
+   "Colour is pitch. Bead size is strike strength. Breathing sets emission spacing.",
+ ));
+}
+
+function choiceButton(text, selected, action) {
+ const button = document.createElement("button");
+ button.type = "button";
+ button.className = "voice-choice";
+ button.textContent = text;
+ if (selected) button.classList.add("selected");
+ button.addEventListener("click", action);
+ return button;
+}
+
+function refresh(onChange) {
+ inspector.dataset.key = "";
+ onChange();
+}
+
+function title(text) {
+ const h = document.createElement("h2");
+ h.textContent = text;
+ return h;
+}
+
+function caption(text) {
+ const div = document.createElement("div");
+ div.className = "field-caption";
+ div.textContent = text;
+ return div;
+}
+
+function message(text) {
+ const p = document.createElement("p");
+ p.textContent = text;
+ return p;
+}
+
+function note(text) {
+ const p = message(text);
+ p.classList.add("inspector-note");
+ return p;
+}
+
+function label(value) {
+ return value[0].toUpperCase() + value.slice(1);
+}
