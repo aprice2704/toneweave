@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Toneweave</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="toolbar">
+      <div>
+        <h1>Toneweave</h1>
+        <p>Build visible musical machines. Distance is time.</p>
+      </div>
+      <div class="toolbar-actions">
+        <button id="enable-audio">Enable sound</button>
+        <button id="toggle-run" disabled>Pause</button>
+        <button id="reset">Reset</button>
+      </div>
+    </header>
+
+    <section class="layout">
+      <div class="stage-wrap">
+        <svg id="stage" viewBox="0 0 1000 640" aria-label="Interactive music network">
+          <g id="links"></g>
+          <g id="balls"></g>
+          <g id="nodes"></g>
+        </svg>
+        <div id="status" class="status">Sound is off. The network is running visually.</div>
+      </div>
+
+      <aside class="sidebar">
+        <section class="panel">
+          <h2>Add blocks</h2>
+          <div class="button-grid">
+            <button class="add-node" data-type="source">Source</button>
+            <button class="add-node" data-type="bell">Bell</button>
+            <button class="add-node" data-type="rack">Rack</button>
+            <button class="add-node" data-type="paint">Painter</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Connect</h2>
+          <p>Click one block, then another. Links are one-way.</p>
+          <div id="selection">No block selected.</div>
+        </section>
+
+        <section class="panel">
+          <h2>Rack pattern</h2>
+          <p>A rack emits its stored sequence when struck.</p>
+          <div class="rack-preview" aria-label="Blue purple blue green">
+            <span class="bead blue"></span>
+            <span class="bead purple"></span>
+            <span class="bead blue"></span>
+            <span class="bead green"></span>
+          </div>
+        </section>
+
+        <section class="panel note">
+          <p><strong>Core law:</strong> anything that changes the music should preferably have a visible physical analogue.</p>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
